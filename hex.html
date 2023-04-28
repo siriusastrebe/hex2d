@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body>
+<svg id="hex-board" height="6000" width="8000"></svg>
+</body>
+
+<script>
+
+class Hex {
+  constructor(q, r, flat, size) {
+    this.q = q;
+    this.r = r;
+    this.s = -q - r; 
+   
+    this.flat = flat;
+    this.size = size;
+  }
+  validate() {
+    return this.q + this.r + this.s === 0
+  }
+  equals(hex) {
+    return this.q === hex.q && this.r === hex.r && this.s === hex.s;
+  }
+  add(hex) {
+    return new Hex(this.q + hex.q, this.r + hex.r);
+  }
+  subtract(hex) {
+    return new Hex(this.q - hex.q, this.r - hex.r);
+  }
+  multiply(hex) {
+    return new Hex(this.q * hex.q, this.r * hex.r);
+  }
+  length(hex) {
+    return (
+      Math.abs(this.q) + Math.abs(hex.q) + 
+      Math.abs(this.r) + Math.abs(hex.r) +
+      Math.abs(this.s) + Math.abs(hex.s)
+    ) / 2;
+  }
+  distance() {
+    return this.length(this.subtract(hex));
+  }
+  center() {
+    return [
+      this.size * (Math.sqrt(3) * this.q + Math.sqrt(3) / 2 * this.r),
+      this.size * (3 / 2 * this.r)
+    ]
+  }
+  corners() {
+    const center = this.center();
+    return [0, 1, 2, 3, 4, 5].map((corner) => {
+      const angle = 2 * Math.PI / 6 * (corner + (this.flat ? 0 : 0.5));
+      return [center[0] + this.size * Math.cos(angle), center[1] + this.size * Math.sin(angle)];
+    });
+  }
+}
+class Cube {
+  constructor(q, r, s) {
+    this.q = q;
+    this.r = r;
+    this.s = -q - r; 
+  }
+}
+
+class HexBoard {
+  constructor(svg, flat, size, width, height) {
+    this.svg = svg;
+    this.flat = flat;
+    this.size = size;
+    this.width = width;
+    this.height = height;
+  }
+  drawLine (p1, p2, color) {
+    var newLine = document.createElementNS('http://www.w3.org/2000/svg','line');
+    newLine.setAttribute('id', 'line2');
+    newLine.setAttribute('x1', p1[0] + this.width / 2);
+    newLine.setAttribute('y1', p1[1] + this.height / 2);
+    newLine.setAttribute('x2', p2[0] + this.width / 2);
+    newLine.setAttribute('y2', p2[1] + this.height / 2);
+    newLine.setAttribute('stroke', color)
+
+    this.svg.appendChild(newLine);
+  }
+  drawHexes (labels) {
+    this.hexesInRadius(6).map((coordinates) => {
+      const hex = new Hex(coordinates[0], coordinates[1], false, this.size);
+      const corners = hex.corners();
+      for (let i=0; i<6; i++) {
+        this.drawLine(corners[i], corners[(i + 1) % 6], (hex.q === 0 && hex.r === 0 && hex.s === 0) ? 'red' : 'black');
+      }
+
+      if (labels) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg','text'); 
+        const center = hex.center();
+        text.setAttribute('x', center[0] + this.width / 2)
+        text.setAttribute('y', center[1] + this.height / 2)
+        text.setAttribute('dominant-baseline', 'middle');
+        text.setAttribute('text-anchor', 'middle');
+        const textNode = document.createTextNode(`${hex.q}, ${hex.r}, ${hex.s}`);
+        text.appendChild(textNode);
+        this.svg.appendChild(text);
+      }
+    });
+  }
+  hexesInRadius (radius) {
+    const hexes = [];
+    for (let q=-radius; q<=radius; q++) {
+      for (let r=Math.max(-radius, -q - radius); r<=Math.min(radius, -q + radius); r++) {
+        const s = -q - r;
+        hexes.push([q, r, s]);
+      }
+    }
+    return hexes;
+  }
+  neighbors(q, r) {
+    const hex = new Hex(q, r);
+    return [
+      hex.add(new Hex(1, 0, -1)),
+      hex.add(new Hex(1, -1, 0)),
+      hex.add(new Hex(0, -1, 1)),
+      hex.add(new Hex(-1, 0, 1)),
+      hex.add(new Hex(-1, 1, 0)),
+      hex.add(new Hex(0, 1, -1))
+    ];
+  }
+  pixelToHex(point) {
+    const x = point[0] - this.width / 2;
+    const y = point[1] - this.height / 2;
+    var q = (Math.sqrt(3)/3 * x  -  1/3 * y) / this.size
+    var r = (                        2/3 * y) / this.size
+    return cube_round(axial_to_cube(new Hex(q, r)));
+  }
+}
+function cube_round(frac) {
+  var q = Math.round(frac.q)
+  var r = Math.round(frac.r)
+  var s = Math.round(frac.s)
+
+  var q_diff = Math.abs(q - frac.q)
+  var r_diff = Math.abs(r - frac.r)
+  var s_diff = Math.abs(s - frac.s)
+
+  if (q_diff > r_diff && q_diff > s_diff) {
+    q = -r-s
+  } else if (r_diff > s_diff) {
+    r = -q-s
+  } else {
+    s = -q-r
+  }
+
+  return new Cube(q, r, s)
+}
+function axial_round(hex) {
+  return cube_to_axial(cube_round(axial_to_cube(hex)));
+}
+function cube_to_axial(cube) {
+  let q = cube.q
+  let r = cube.r
+  return new Hex(q, r)
+}
+
+function axial_to_cube(hex) {
+  var q = hex.q
+  var r = hex.r
+  var s = -q-r
+  return new Cube(q, r, s)
+}
+
+
+const svg = document.getElementById('hex-board');
+const board = new HexBoard(svg, true, 40, 2000, 1600);
+board.drawHexes(true);
+
+svg.addEventListener('mousemove', (e) => {
+  const point = [e.offsetX, e.offsetY];
+  console.log(board.pixelToHex(point));
+})
+
+</script>
+
+
+</html>
