@@ -71,11 +71,13 @@ class HexBoard {
     this.size = size;
     this.width = width;
     this.height = height;
+    this.center = [width / 2, height / 2];
+    this.hexagons = {};
   }
   drawLine (p1, p2, color) {
     var newLine = document.createElementNS('http://www.w3.org/2000/svg','line');
     newLine.setAttribute('id', 'line2');
-    newLine.setAttribute('x1', p1[0] + this.width / 2);
+    newLine.setAttribute('x1', p1[0] + this.center[0]);
     newLine.setAttribute('y1', p1[1] + this.height / 2);
     newLine.setAttribute('x2', p2[0] + this.width / 2);
     newLine.setAttribute('y2', p2[1] + this.height / 2);
@@ -83,13 +85,30 @@ class HexBoard {
 
     this.svg.appendChild(newLine);
   }
+  drawHexagon (hex) {
+    const hexagon = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    hex.corners().map((corner) => {
+      const point = this.svg.createSVGPoint();
+      point.x = corner[0] + this.center[0];
+      point.y = corner[1] + this.center[1];
+      hexagon.points.appendItem(point);
+    })
+    hexagon.setAttribute('fill', 'ivory');
+    hexagon.setAttribute('stroke', 'gray');
+
+    this.svg.appendChild(hexagon);
+
+    this.hexagons[hex.q] = this.hexagons[hex.q] || {};
+    this.hexagons[hex.q][hex.r] = hexagon;
+  }
   drawHexes (labels) {
     this.hexesInRadius(6).map((coordinates) => {
       const hex = new Hex(coordinates[0], coordinates[1], false, this.size);
-      const corners = hex.corners();
-      for (let i=0; i<6; i++) {
-        this.drawLine(corners[i], corners[(i + 1) % 6], (hex.q === 0 && hex.r === 0 && hex.s === 0) ? 'red' : 'black');
-      }
+      // const corners = hex.corners();
+      // for (let i=0; i<6; i++) {
+      //   this.drawLine(corners[i], corners[(i + 1) % 6], (hex.q === 0 && hex.r === 0 && hex.s === 0) ? 'red' : 'black');
+      // }
+      const hexagon = this.drawHexagon(hex);
 
       if (labels) {
         const text = document.createElementNS('http://www.w3.org/2000/svg','text'); 
@@ -103,6 +122,16 @@ class HexBoard {
         this.svg.appendChild(text);
       }
     });
+  }
+  toggleHex(hex) {
+    if (this.hexagons[hex.q] && this.hexagons[hex.q][hex.r]) {
+      const hexagon = this.hexagons[hex.q][hex.r];
+      if (hexagon.getAttribute('fill').includes('red')) {
+        hexagon.setAttribute('fill', 'ivory');
+      } else {
+        hexagon.setAttribute('fill', 'red');
+      }
+    }
   }
   hexesInRadius (radius) {
     const hexes = [];
@@ -125,7 +154,7 @@ class HexBoard {
       hex.add(new Hex(0, 1, -1))
     ];
   }
-  pixelToHex(point) {
+  pixelToCube(point) {
     const x = point[0] - this.width / 2;
     const y = point[1] - this.height / 2;
     var q = (Math.sqrt(3)/3 * x  -  1/3 * y) / this.size
@@ -175,8 +204,13 @@ board.drawHexes(true);
 
 svg.addEventListener('mousemove', (e) => {
   const point = [e.offsetX, e.offsetY];
-  console.log(board.pixelToHex(point));
+  console.log(board.pixelToCube(point));
 })
+svg.addEventListener('click', (e) => {
+  const point = [e.offsetX, e.offsetY];
+  const cube = board.pixelToCube(point);
+  board.toggleHex(cube);
+});
 
 </script>
 
