@@ -43,16 +43,16 @@ class Hex {
     return this.length(this.subtract(hex));
   }
   center() {
-    return [
+    return new Point(
       this.size * (Math.sqrt(3) * this.q + Math.sqrt(3) / 2 * this.r),
       this.size * (3 / 2 * this.r)
-    ]
+    );
   }
   corners() {
     const center = this.center();
     return [0, 1, 2, 3, 4, 5].map((corner) => {
       const angle = 2 * Math.PI / 6 * (corner + (this.flat ? 0 : 0.5));
-      return [center[0] + this.size * Math.cos(angle), center[1] + this.size * Math.sin(angle)];
+      return new Point(center.x + this.size * Math.cos(angle), center.y + this.size * Math.sin(angle));
     });
   }
 }
@@ -64,6 +64,13 @@ class Cube {
   }
 }
 
+class Point {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
 class HexBoard {
   constructor(svg, flat, size, width, height) {
     this.svg = svg;
@@ -71,38 +78,49 @@ class HexBoard {
     this.size = size;
     this.width = width;
     this.height = height;
-    this.center = [width / 2, height / 2];
-    this.hexagons = {};
+    this.center = new Point(width / 2, height / 2);
+    this.hexes = {};
   }
   drawLine (p1, p2, color) {
     var newLine = document.createElementNS('http://www.w3.org/2000/svg','line');
     newLine.setAttribute('id', 'line2');
-    newLine.setAttribute('x1', p1[0] + this.center[0]);
-    newLine.setAttribute('y1', p1[1] + this.height / 2);
-    newLine.setAttribute('x2', p2[0] + this.width / 2);
-    newLine.setAttribute('y2', p2[1] + this.height / 2);
+    newLine.setAttribute('x1', p1.x + this.center.x);
+    newLine.setAttribute('y1', p1.y + this.center.y);
+    newLine.setAttribute('x2', p2.x + this.center.x);
+    newLine.setAttribute('y2', p2.y + this.center.y);
     newLine.setAttribute('stroke', color)
 
     this.svg.appendChild(newLine);
+    return newLine;
   }
   drawHexagon (hex) {
     const hexagon = document.createElementNS('http://www.w3.org/2000/svg','polygon');
     hex.corners().map((corner) => {
       const point = this.svg.createSVGPoint();
-      point.x = corner[0] + this.center[0];
-      point.y = corner[1] + this.center[1];
+      point.x = corner.x + this.center.x;
+      point.y = corner.y + this.center.y;
+      console.log(corner, this.center, point);
       hexagon.points.appendItem(point);
     })
     hexagon.setAttribute('fill', 'ivory');
     hexagon.setAttribute('stroke', 'gray');
 
     this.svg.appendChild(hexagon);
-
-    this.hexagons[hex.q] = this.hexagons[hex.q] || {};
-    this.hexagons[hex.q][hex.r] = hexagon;
+    this.setHex(hex, hexagon);
+  }
+  setHex (hex, hexagon) {
+    this.hexes[hex.q] = this.hexes[hex.q] || {};
+    this.hexes[hex.q][hex.r] = {hex: hex, hexagon: hexagon};
+  }
+  getHex (q, r) {
+    if (this.hexes[q] && this.hexes[q][r]) {
+      return this.hexes[q][r];
+    } else {
+      return {hex: null, hexagon: null};
+    }
   }
   drawHexes (labels) {
-    this.hexesInRadius(6).map((coordinates) => {
+    this.hexesInRadius(10).map((coordinates) => {
       const hex = new Hex(coordinates[0], coordinates[1], false, this.size);
       // const corners = hex.corners();
       // for (let i=0; i<6; i++) {
@@ -113,8 +131,8 @@ class HexBoard {
       if (labels) {
         const text = document.createElementNS('http://www.w3.org/2000/svg','text'); 
         const center = hex.center();
-        text.setAttribute('x', center[0] + this.width / 2)
-        text.setAttribute('y', center[1] + this.height / 2)
+        text.setAttribute('x', center.x + this.center.x)
+        text.setAttribute('y', center.y + this.center.y)
         text.setAttribute('dominant-baseline', 'middle');
         text.setAttribute('text-anchor', 'middle');
         const textNode = document.createTextNode(`${hex.q}, ${hex.r}, ${hex.s}`);
@@ -123,13 +141,35 @@ class HexBoard {
       }
     });
   }
-  toggleHex(hex) {
-    if (this.hexagons[hex.q] && this.hexagons[hex.q][hex.r]) {
-      const hexagon = this.hexagons[hex.q][hex.r];
-      if (hexagon.getAttribute('fill').includes('red')) {
+  toggleHex(cube) {
+    const { hex, hexagon } = this.getHex(cube.q, cube.r);
+    if (hex && hexagon) {
+      if (hex.active) {
         hexagon.setAttribute('fill', 'ivory');
+        hex.lines.forEach((line) => {
+          line.remove();
+        });
+        delete hex.lines;
+        delete hex.active;
       } else {
+        hex.active = true;
         hexagon.setAttribute('fill', 'red');
+
+        const centerHex = this.getHex(0, 0).hex;
+        const corners = hex.corners();
+        const cornersScaled = corners.map((corner) => {
+          const middle = centerHex.center();
+          const vector = new Point((corner.x - middle.x), (corner.y - middle.y));
+          return new Point(middle.x + vector.x * 8, middle.y + vector.y * 8);
+        });
+
+        cornersScaled.forEach((corner, i) => {
+          const p1 = corner;
+          const p2 = cornersScaled[(i + 1) % 6];
+          const line = this.drawLine(centerHex.center(), p2, 'blue');
+          hex.lines = hex.lines || [];
+          hex.lines.push(line);
+        });
       }
     }
   }
@@ -155,8 +195,8 @@ class HexBoard {
     ];
   }
   pixelToCube(point) {
-    const x = point[0] - this.width / 2;
-    const y = point[1] - this.height / 2;
+    const x = point.x - this.center.x;
+    const y = point.y - this.center.y;
     var q = (Math.sqrt(3)/3 * x  -  1/3 * y) / this.size
     var r = (                        2/3 * y) / this.size
     return cube_round(axial_to_cube(new Hex(q, r)));
@@ -199,15 +239,15 @@ function axial_to_cube(hex) {
 
 
 const svg = document.getElementById('hex-board');
-const board = new HexBoard(svg, true, 40, 2000, 1600);
+const board = new HexBoard(svg, true, 35, 2000, 1600);
 board.drawHexes(true);
 
 svg.addEventListener('mousemove', (e) => {
-  const point = [e.offsetX, e.offsetY];
-  console.log(board.pixelToCube(point));
+  const point = new Point(e.offsetX, e.offsetY);
+  // console.log(board.pixelToCube(point));
 })
 svg.addEventListener('click', (e) => {
-  const point = [e.offsetX, e.offsetY];
+  const point = new Point(e.offsetX, e.offsetY);
   const cube = board.pixelToCube(point);
   board.toggleHex(cube);
 });
