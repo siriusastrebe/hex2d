@@ -69,6 +69,27 @@ class Point {
     this.x = x;
     this.y = y;
   }
+  sortByClosest(points) {
+    const distances = points.map((p, i) => {
+      return [i, Math.sqrt(Math.pow(this.x - p.x, 2) + Math.pow(this.y - p.y, 2))];
+    });
+    const sorted = distances.sort((a, b) => {
+      return b[1] - a[1];
+    });
+    return sorted.map((s) => {
+      return points[s[0]];
+    });
+  }
+  radianExtent(points) {
+    const angles = points.map((p, i) => {
+      const v = new Point(p.x - this.x, p.y - this.y);
+      let angle = Math.atan2(v.y, v.x);
+      return angle;
+    });
+    return angles.sort((a, b) => {
+      return Math.abs(a) - Math.abs(b);
+    });
+  }
 }
 
 class HexBoard {
@@ -99,7 +120,6 @@ class HexBoard {
       const point = this.svg.createSVGPoint();
       point.x = corner.x + this.center.x;
       point.y = corner.y + this.center.y;
-      console.log(corner, this.center, point);
       hexagon.points.appendItem(point);
     })
     hexagon.setAttribute('fill', 'ivory');
@@ -141,37 +161,72 @@ class HexBoard {
       }
     });
   }
-  toggleHex(cube) {
-    const { hex, hexagon } = this.getHex(cube.q, cube.r);
-    if (hex && hexagon) {
-      if (hex.active) {
-        hexagon.setAttribute('fill', 'ivory');
+  render() {
+    // this.drawHexes(true);
+    this.removeLines();
+    this.drawLines();
+  }
+  removeLines() {
+    this.allHexes().forEach((h) => {
+      const hex = h.hex
+      if (hex.lines) {
         hex.lines.forEach((line) => {
           line.remove();
         });
-        delete hex.lines;
-        delete hex.active;
-      } else {
-        hex.active = true;
-        hexagon.setAttribute('fill', 'red');
-
-        const centerHex = this.getHex(0, 0).hex;
+      };
+    })
+  }
+  drawLines() {
+    const centerHex = this.getHex(0, 0).hex;
+    this.allHexes().forEach((h) => {
+      const hex = h.hex;
+      if (hex.active) {
         const corners = hex.corners();
+        const source = centerHex.source || centerHex.center();
         const cornersScaled = corners.map((corner) => {
-          const middle = centerHex.center();
-          const vector = new Point((corner.x - middle.x), (corner.y - middle.y));
-          return new Point(middle.x + vector.x * 8, middle.y + vector.y * 8);
+          const vector = new Point((corner.x - source.x), (corner.y - source.y));
+          return new Point(source.x + vector.x * 8, source.y + vector.y * 8);
         });
 
-        cornersScaled.forEach((corner, i) => {
-          const p1 = corner;
-          const p2 = cornersScaled[(i + 1) % 6];
-          const line = this.drawLine(centerHex.center(), p2, 'blue');
+        const radians = source.radianExtent(corners);
+        console.log(radians);
+        const widest = [radians[0], radians[5]];
+
+        widest.forEach((radian, i) => {
+          const p1 = source;
+          const p2 = new Point(p1.x + Math.cos(radian) * 1000, p1.y + Math.sin(radian) * 1000);
+          let color = 'navy';
+          const line = this.drawLine(source, p2, color);
+
           hex.lines = hex.lines || [];
           hex.lines.push(line);
         });
       }
+    });
+  }
+  toggleHex(cube) {
+    const { hex, hexagon } = this.getHex(cube.q, cube.r);
+
+    if (hex && hexagon) {
+      const centerHex = this.getHex(0, 0).hex;
+      if (hex === centerHex) {
+        const source = centerHex.source || centerHex.center();
+        const index = centerHex.corners().findIndex(c => c.x === source.x && c.y === source.y);
+        centerHex.source = centerHex.corners()[(index + 1) % 6];
+      }
+      if (hex.active) {
+        hexagon.setAttribute('fill', 'ivory');
+        // hex.lines.forEach((line) => {
+        //   line.remove();
+        // });
+        delete hex.active;
+      } else if (hex !== centerHex) {
+        hex.active = true;
+        hexagon.setAttribute('fill', 'red');
+      }
     }
+    this.removeLines();
+    this.drawLines();
   }
   hexesInRadius (radius) {
     const hexes = [];
@@ -182,6 +237,15 @@ class HexBoard {
       }
     }
     return hexes;
+  }
+  allHexes () {
+    const all = [];
+    Object.keys(this.hexes).forEach((q) => {
+      Object.keys(this.hexes[q]).forEach((r) => {
+        all.push(this.hexes[q][r]);
+      });
+    });
+    return all;
   }
   neighbors(q, r) {
     const hex = new Hex(q, r);
