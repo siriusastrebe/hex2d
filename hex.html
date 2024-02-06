@@ -43,10 +43,17 @@ class Hex {
     return this.length(this.subtract(hex));
   }
   center() {
-    return new Point(
-      this.size * (Math.sqrt(3) * this.q + Math.sqrt(3) / 2 * this.r),
-      this.size * (3 / 2 * this.r)
-    );
+    if (this.flat) {
+      return new Point(
+        this.size * (3 / 2 * this.q),
+        this.size * (Math.sqrt(3) / 2 * this.q + Math.sqrt(3) * this.r)
+      );
+    } else {
+      return new Point(
+        this.size * (Math.sqrt(3) * this.q + Math.sqrt(3) / 2 * this.r),
+        this.size * (3 / 2 * this.r)
+      );
+    }
   }
   corners() {
     const center = this.center();
@@ -141,7 +148,7 @@ class HexBoard {
   }
   drawHexes (labels) {
     this.hexesInRadius(10).map((coordinates) => {
-      const hex = new Hex(coordinates[0], coordinates[1], false, this.size);
+      const hex = new Hex(coordinates[0], coordinates[1], this.flat, this.size);
       // const corners = hex.corners();
       // for (let i=0; i<6; i++) {
       //   this.drawLine(corners[i], corners[(i + 1) % 6], (hex.q === 0 && hex.r === 0 && hex.s === 0) ? 'red' : 'black');
@@ -163,47 +170,50 @@ class HexBoard {
   }
   render() {
     // this.drawHexes(true);
-    this.removeLines();
-    this.drawLines();
+    // this.removeLines();
+    // this.drawLines();
   }
-  removeLines() {
-    this.allHexes().forEach((h) => {
-      const hex = h.hex
-      if (hex.lines) {
-        hex.lines.forEach((line) => {
-          line.remove();
-        });
-      };
-    })
-  }
-  drawLines() {
-    const centerHex = this.getHex(0, 0).hex;
-    this.allHexes().forEach((h) => {
-      const hex = h.hex;
-      if (hex.active) {
-        const corners = hex.corners();
-        const source = centerHex.source || centerHex.center();
-        const cornersScaled = corners.map((corner) => {
-          const vector = new Point((corner.x - source.x), (corner.y - source.y));
-          return new Point(source.x + vector.x * 8, source.y + vector.y * 8);
-        });
 
-        const radians = source.radianExtent(corners);
-        console.log(radians);
-        const widest = [radians[0], radians[5]];
+  // removeLines() {
+  //   this.allHexes().forEach((h) => {
+  //     const hex = h.hex
+  //     if (hex.lines) {
+  //       hex.lines.forEach((line) => {
+  //         line.remove();
+  //       });
+  //     };
+  //   })
+  // }
 
-        widest.forEach((radian, i) => {
-          const p1 = source;
-          const p2 = new Point(p1.x + Math.cos(radian) * 1000, p1.y + Math.sin(radian) * 1000);
-          let color = 'navy';
-          const line = this.drawLine(source, p2, color);
 
-          hex.lines = hex.lines || [];
-          hex.lines.push(line);
-        });
-      }
-    });
-  }
+  // drawLines() {
+  //   const centerHex = this.getHex(0, 0).hex;
+  //   this.allHexes().forEach((h) => {
+  //     const hex = h.hex;
+  //     if (hex.active) {
+  //       const corners = hex.corners();
+  //       const source = centerHex.source || centerHex.center();
+  //       const cornersScaled = corners.map((corner) => {
+  //         const vector = new Point((corner.x - source.x), (corner.y - source.y));
+  //         return new Point(source.x + vector.x * 8, source.y + vector.y * 8);
+  //       });
+
+  //       const radians = source.radianExtent(corners);
+  //       console.log(radians);
+  //       const widest = [radians[0], radians[5]];
+
+  //       widest.forEach((radian, i) => {
+  //         const p1 = source;
+  //         const p2 = new Point(p1.x + Math.cos(radian) * 1000, p1.y + Math.sin(radian) * 1000);
+  //         let color = 'navy';
+  //         const line = this.drawLine(source, p2, color);
+
+  //         hex.lines = hex.lines || [];
+  //         hex.lines.push(line);
+  //       });
+  //     }
+  //   });
+  // }
   toggleHex(cube) {
     const { hex, hexagon } = this.getHex(cube.q, cube.r);
 
@@ -225,8 +235,6 @@ class HexBoard {
         hexagon.setAttribute('fill', 'red');
       }
     }
-    this.removeLines();
-    this.drawLines();
   }
   hexesInRadius (radius) {
     const hexes = [];
@@ -258,11 +266,11 @@ class HexBoard {
       hex.add(new Hex(0, 1, -1))
     ];
   }
-  pixelToCube(point) {
+  pixelToCube(point, flat) {
     const x = point.x - this.center.x;
     const y = point.y - this.center.y;
-    var q = (Math.sqrt(3)/3 * x  -  1/3 * y) / this.size
-    var r = (                        2/3 * y) / this.size
+    var q = flat ? (Math.sqrt(3)/3 * x  -  1/3 * y) / this.size : (2/3 * x) / this.size;
+    var r = flat ? (2/3 * y) / this.size : (-1/3 * x + Math.sqrt(3)/3 * y) / this.size;
     return cube_round(axial_to_cube(new Hex(q, r)));
   }
 }
@@ -304,7 +312,7 @@ function axial_to_cube(hex) {
 
 const svg = document.getElementById('hex-board');
 const board = new HexBoard(svg, true, 35, 2000, 1600);
-board.drawHexes(true);
+board.drawHexes(false);
 
 svg.addEventListener('mousemove', (e) => {
   const point = new Point(e.offsetX, e.offsetY);
