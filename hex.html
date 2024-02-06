@@ -121,7 +121,7 @@ class HexBoard {
     this.svg.appendChild(newLine);
     return newLine;
   }
-  drawHexagon (hex) {
+  drawHexagon (hex, fill, stroke) {
     const hexagon = document.createElementNS('http://www.w3.org/2000/svg','polygon');
     hex.corners().map((corner) => {
       const point = this.svg.createSVGPoint();
@@ -129,8 +129,8 @@ class HexBoard {
       point.y = corner.y + this.center.y;
       hexagon.points.appendItem(point);
     })
-    hexagon.setAttribute('fill', 'ivory');
-    hexagon.setAttribute('stroke', 'gray');
+    hexagon.setAttribute('fill', fill);
+    hexagon.setAttribute('stroke', stroke);
 
     this.svg.appendChild(hexagon);
     this.setHex(hex, hexagon);
@@ -153,7 +153,10 @@ class HexBoard {
       // for (let i=0; i<6; i++) {
       //   this.drawLine(corners[i], corners[(i + 1) % 6], (hex.q === 0 && hex.r === 0 && hex.s === 0) ? 'red' : 'black');
       // }
-      const hexagon = this.drawHexagon(hex);
+      const fill = coordinates[0] === 0 && coordinates[1] === 0 ? 'limegreen' : 'transparent';
+      const stroke = coordinates[0] === 0 && coordinates[1] === 0 ? 'gray' : 'transparent';
+
+      const hexagon = this.drawHexagon(hex, fill, stroke);
 
       if (labels) {
         const text = document.createElementNS('http://www.w3.org/2000/svg','text'); 
@@ -225,7 +228,7 @@ class HexBoard {
         centerHex.source = centerHex.corners()[(index + 1) % 6];
       }
       if (hex.active) {
-        hexagon.setAttribute('fill', 'ivory');
+        hexagon.setAttribute('fill', 'transparent');
         // hex.lines.forEach((line) => {
         //   line.remove();
         // });
@@ -233,6 +236,7 @@ class HexBoard {
       } else if (hex !== centerHex) {
         hex.active = true;
         hexagon.setAttribute('fill', 'red');
+        hexagon.setAttribute('stroke', 'black');
       }
     }
   }
